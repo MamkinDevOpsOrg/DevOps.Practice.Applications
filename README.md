@@ -36,7 +36,7 @@ docker run -d -p 8000:8000 --name express-container simple-express-api
 ```
 
 The server will be available at:
-`http://localhost:3000`
+`http://localhost:8000`
 
 ### Stop and Remove the Container
 
