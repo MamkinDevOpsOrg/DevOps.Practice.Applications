@@ -1,46 +1,36 @@
-# Simple Express API
+# 🧩 DevOps Apps Monorepo
 
-A basic API application built with Node.js and Express.
+This repository is a **monorepo** that contains application code used for practicing DevOps skills.
+
+It is designed to support:
+
+- Dockerization
+- GitHub Actions workflows
+- ECR/ECS deployments
+- ...
+
+Currently it contains:
+
+- ✅ [`app1`](./app1) — A simple Express.js API
+
+> More applications (e.g. `app2`, `app3`, etc.) will be added over time as needed.
 
 ---
 
-## Running Locally
+## 📦 Project Structure
 
-```bash
-cd app1
-```
+- 📁 `.github/workflows/` - CI/CD pipelines (e.g., build and push to ECR)
+- 📁 `app1/` - Simple Express API (Node.js + Docker)
+- 📄 `README.md` ← you are here
 
-### Install Dependencies
+---
 
-```bash
-npm install
-npm run start
-```
+## 🔧 How to Get Started with `app1`
 
-## Running with Docker
+Check the [README for `app1`](./app1/README.md) for instructions on:
 
-```bash
-cd app1
-```
+- Running locally
+- Building with Docker
+- Pushing images to AWS ECR
 
-### Build the Docker Image
-
-```bash
-docker build -t simple-express-api .
-```
-
-### Run the Container
-
-```bash
-docker run -d -p 8000:8000 --name express-container simple-express-api
-```
-
-The server will be available at:
-`http://localhost:8000`
-
-### Stop and Remove the Container
-
-```bash
-docker stop express-container
-docker rm express-container
-```
+---
