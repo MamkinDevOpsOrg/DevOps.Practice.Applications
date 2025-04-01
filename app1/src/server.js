@@ -11,3 +11,5 @@ async function startServer() {
 }
 
 startServer();
+
+// comment just to check ECR deploy flow
