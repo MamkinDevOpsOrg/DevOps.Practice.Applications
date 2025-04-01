@@ -1,4 +1,4 @@
-# 🧩 DevOps Apps Monorepo
+# DevOps Apps Monorepo
 
 This repository is a **monorepo** that contains application code used for practicing DevOps skills.
 
@@ -11,13 +11,13 @@ It is designed to support:
 
 Currently it contains:
 
-- ✅ [`app1`](./app1) — A simple Express.js API
+- [`app1`](./app1) — A simple Express.js API
 
 > More applications (e.g. `app2`, `app3`, etc.) will be added over time as needed.
 
 ---
 
-## 📦 Project Structure
+## Project Structure
 
 - 📁 `.github/workflows/` - CI/CD pipelines (e.g., build and push to ECR)
 - 📁 `app1/` - Simple Express API (Node.js + Docker)
@@ -25,7 +25,7 @@ Currently it contains:
 
 ---
 
-## 🔧 How to Get Started with `app1`
+## How to Get Started with `app1`
 
 Check the [README for `app1`](./app1/README.md) for instructions on:
 
