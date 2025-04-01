@@ -40,16 +40,20 @@ jobs:
 
       - name: Extract short commit hash
         id: vars
-        run: echo "TAG_SUFFIX=latest-$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
+        run: echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
 
       - name: Build Docker image
         run: |
           docker build -t $IMAGE_NAME ./app1
-          docker tag $IMAGE_NAME ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:$TAG_SUFFIX
+          docker tag $IMAGE_NAME ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:latest
+          docker tag $IMAGE_NAME ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:temp-${SHORT_SHA}
 
       - name: Push to Amazon ECR
         run: |
-          docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:$TAG_SUFFIX
+          docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:latest
+          docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:temp-${SHORT_SHA}
 
-      - name: Output image tag
-        run: echo "Image pushed is - $ECR_REPOSITORY:$TAG_SUFFIX"
+      - name: Output image tags
+        run: |
+          echo "Image pushed tag is - $ECR_REPOSITORY:latest
+          echo "Image pushed tag is - $ECR_REPOSITORY:temp-${SHORT_SHA}
