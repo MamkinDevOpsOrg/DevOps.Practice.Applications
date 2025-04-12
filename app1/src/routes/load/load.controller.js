@@ -1,13 +1,13 @@
 const { logCpuUsage, logMemoryUsage } = require('../../helpers/logs');
 
-// CPU stress (burns ~25% of 1 core for 10 seconds)
+// CPU stress (burns ~20-25% of 1 core for 10 seconds)
 async function load_cpu(req, res) {
   console.log('[CPU] Start');
 
   const cpuStart = process.cpuUsage();
   const endTime = Date.now() + 10_000;
-  const burnInterval = 50;
-  const cpuLoad = 0.4; // 40% of 50ms = 20ms of CPU work
+  const burnInterval = 100;
+  const cpuLoad = 0.25;
 
   function burnCpu() {
     const now = Date.now();
