@@ -1,0 +1,42 @@
+name: Update Lambda Clients
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'lambda_clients/**'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-west-2
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+jobs:
+  update-lambdas:
+    name: Zip and update each Lambda
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        lambda:
+          - name: trigger_cpu_load
+            path: lambda_clients/app1/trigger_cpu
+          - name: trigger_mem_load
+            path: lambda_clients/app1/trigger_mem
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Zip code for ${{ matrix.lambda.name }}
+        run: |
+          cd ${{ matrix.lambda.path }}
+          zip -r ../../${{ matrix.lambda.name }}.zip .
+
+      - name: Update Lambda code in AWS
+        run: |
+          aws lambda update-function-code \
+            --region $AWS_REGION \
+            --function-name ${{ matrix.lambda.name }} \
+            --zip-file fileb://lambda_clients/${{ matrix.lambda.name }}.zip
