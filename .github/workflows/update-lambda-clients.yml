@@ -25,7 +25,7 @@ jobs:
         run: |
           find lambda_clients -mindepth 2 -maxdepth 2 -type d | while read dir; do
             name=$(basename "$dir")
-            zip -r "lambda_clients/${name}.zip" "$dir"
+            (cd "$dir" && zip -r "../../../lambda_clients/${name}.zip" .)
           done
 
       - name: Update each Lambda function in AWS
