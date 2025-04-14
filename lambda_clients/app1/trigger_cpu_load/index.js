@@ -1,5 +1,4 @@
 const http = require('http');
-const test = require('./helper/test');
 
 exports.handler = async () => {
   const url = process.env.TARGET_URL;
@@ -23,8 +22,5 @@ exports.handler = async () => {
   }
 
   console.log('✅ Done with 6 requests');
-  console.log('!!! DEBUG !!!');
-  console.log('!!! DEBUG !!!');
-  console.log(test.msg);
   return { statusCode: 200, body: 'Completed 6 requests every 10 seconds' };
 };
