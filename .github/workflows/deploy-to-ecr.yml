@@ -2,8 +2,10 @@ name: Build & Push to ECR
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+    paths:
+      - 'app1/**'
+      - '.github/workflows/deploy-to-ecr.yml'
 
 permissions:
   contents: read
