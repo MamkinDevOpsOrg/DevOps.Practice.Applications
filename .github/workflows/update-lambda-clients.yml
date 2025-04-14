@@ -13,43 +13,28 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
 jobs:
-  generate-matrix:
-    name: Detect changed Lambda functions
+  update-all-lambdas:
+    name: Zip and update ALL Lambda functions
     runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Needed for full git history (for origin/main diff)
-
-      - id: set-matrix
-        run: |
-          chmod +x .github/scripts/generate-matrix-for-lambda-clients.sh
-          MATRIX_JSON=$(.github/scripts/generate-matrix-for-lambda-clients.sh)
-          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
-
-  update-lambdas:
-    name: Zip and update changed Lambdas
-    needs: generate-matrix
-    runs-on: ubuntu-latest
-    if: ${{ needs.generate-matrix.outputs.matrix != '{}' }}
-    strategy:
-      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Zip code for ${{ matrix.name }}
+      - name: Zip all lambda functions
         run: |
-          cd ${{ matrix.path }}
-          zip -r ../../${{ matrix.name }}.zip .
+          find lambda_clients -mindepth 2 -maxdepth 2 -type d | while read dir; do
+            name=$(basename "$dir")
+            zip -r "lambda_clients/${name}.zip" "$dir"
+          done
 
-      - name: Update Lambda code in AWS
+      - name: Update each Lambda function in AWS
         run: |
-          aws lambda update-function-code \
-            --region $AWS_REGION \
-            --function-name ${{ matrix.name }} \
-            --zip-file fileb://lambda_clients/${{ matrix.name }}.zip
+          for zip in lambda_clients/*.zip; do
+            name=$(basename "$zip" .zip)
+            echo "Updating $name from $zip..."
+            aws lambda update-function-code \
+              --region $AWS_REGION \
+              --function-name "$name" \
+              --zip-file "fileb://$zip"
+          done
