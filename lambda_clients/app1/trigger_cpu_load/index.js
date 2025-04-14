@@ -22,5 +22,6 @@ exports.handler = async () => {
   }
 
   console.log('✅ Done with 6 requests');
+  console.log('!!! DEBUG !!!');
   return { statusCode: 200, body: 'Completed 6 requests every 10 seconds' };
 };
