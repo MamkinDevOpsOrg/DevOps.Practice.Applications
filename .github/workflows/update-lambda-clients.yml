@@ -13,30 +13,43 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
 jobs:
-  update-lambdas:
-    name: Zip and update each Lambda
+  generate-matrix:
+    name: Detect changed Lambda functions
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Needed for full git history (for origin/main diff)
 
+      - id: set-matrix
+        run: |
+          chmod +x .github/scripts/generate-matrix-for-lambda-clients.sh
+          MATRIX_JSON=$(.github/scripts/generate-matrix-for-lambda-clients.sh)
+          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+
+  update-lambdas:
+    name: Zip and update changed Lambdas
+    needs: generate-matrix
+    runs-on: ubuntu-latest
+    if: ${{ needs.generate-matrix.outputs.matrix != '{}' }}
     strategy:
-      matrix:
-        lambda:
-          - name: trigger_cpu_load
-            path: lambda_clients/app1/trigger_cpu
-          - name: trigger_mem_load
-            path: lambda_clients/app1/trigger_mem
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Zip code for ${{ matrix.lambda.name }}
+      - name: Zip code for ${{ matrix.name }}
         run: |
-          cd ${{ matrix.lambda.path }}
-          zip -r ../../${{ matrix.lambda.name }}.zip .
+          cd ${{ matrix.path }}
+          zip -r ../../${{ matrix.name }}.zip .
 
       - name: Update Lambda code in AWS
         run: |
           aws lambda update-function-code \
             --region $AWS_REGION \
-            --function-name ${{ matrix.lambda.name }} \
-            --zip-file fileb://lambda_clients/${{ matrix.lambda.name }}.zip
+            --function-name ${{ matrix.name }} \
+            --zip-file fileb://lambda_clients/${{ matrix.name }}.zip
