@@ -31,7 +31,7 @@ async function load_cpu(req, res) {
 
     const start = Date.now();
     while (Date.now() - start < burnTime) {
-      pbkdf2Sync('super_secret_password', 'salt', 100000, 64, 'sha512');
+      pbkdf2Sync('super_secret_password', 'salt', 10000000, 64, 'sha512');
     }
 
     setTimeout(burnCpu, sleepTime);
