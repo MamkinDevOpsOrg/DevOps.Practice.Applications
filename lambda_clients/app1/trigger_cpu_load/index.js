@@ -5,8 +5,8 @@ exports.handler = async () => {
 
   console.log(`Lambda triggered: ${url}`);
 
-  for (let i = 0; i < 6; i++) {
-    console.log(`[${i + 1}/6] Sending request to ${url}`);
+  for (let i = 0; i < 5; i++) {
+    console.log(`[${i + 1}/5] Sending request to ${url}`);
 
     await new Promise((resolve) => {
       http
