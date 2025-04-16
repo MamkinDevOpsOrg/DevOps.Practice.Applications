@@ -1,3 +1,4 @@
+const { pbkdf2Sync } = require('node:crypto');
 const { logCpuUsage, logMemoryUsage } = require('../../helpers/logs');
 
 // CPU stress
@@ -25,7 +26,7 @@ async function load_cpu(req, res) {
 
     const start = Date.now();
     while (Date.now() - start < burnTime) {
-      Math.sqrt(Math.sqrt(Math.sqrt(Math.random())));
+      pbkdf2Sync('secret_password', 'salt', 20_000, 64, 'sha512');
     }
 
     setTimeout(burnCpu, sleepTime);
