@@ -1,5 +1,3 @@
-const os = require('os');
-const { Worker } = require('node:worker_threads');
 const { logCpuUsage, logMemoryUsage } = require('../../helpers/logs');
 
 // CPU stress
@@ -7,70 +5,33 @@ async function load_cpu(req, res) {
   const cpu_utilization = Number(req.params.cpu_utilization) || 25;
   const cpuLoad = Math.max(0, Math.min(cpu_utilization / 100, 1));
 
-  console.log(`[CPU] Start with ~${cpu_utilization}% load per core`);
+  console.log(`[CPU] Start with ~${cpu_utilization}% load (1 vCPU)`);
 
   const cpuStart = process.cpuUsage();
   const durationMs = 10_000;
-  const cpuCount = os.cpus().length;
-  const workers = [];
+  const burnInterval = 100;
+  const endTime = Date.now() + durationMs;
 
-  const workerCode = `
-    const { parentPort, workerData } = require('node:worker_threads');
-    const { pbkdf2Sync } = require('node:crypto');
-
-    const duration = workerData.duration;
-    const cpuLoad = workerData.cpuLoad;
-    const burnInterval = 100;
-
-    const endTime = Date.now() + duration;
-
-    function burnCpu() {
-      const now = Date.now();
-      if (now >= endTime) {
-        parentPort.postMessage('done');
-        return;
-      }
-
-      const burnTime = burnInterval * cpuLoad;
-      const sleepTime = burnInterval - burnTime;
-
-      const start = Date.now();
-      while (Date.now() - start < burnTime) {
-        Math.sqrt(Math.sqrt(Math.random()));
-        pbkdf2Sync('super_secret_password', 'salt', 1000000, 64, 'sha512')
-      }
-
-      setTimeout(burnCpu, sleepTime);
+  function burnCpu() {
+    const now = Date.now();
+    if (now >= endTime) {
+      console.log('[CPU] End');
+      logCpuUsage('CPU - Total', cpuStart);
+      return res.status(200).json({ message: 'CPU stress done' });
     }
 
-    burnCpu();
-  `;
+    const burnTime = burnInterval * cpuLoad;
+    const sleepTime = burnInterval - burnTime;
 
-  return new Promise((resolve) => {
-    let completed = 0;
-
-    for (let i = 0; i < cpuCount; i++) {
-      const worker = new Worker(workerCode, {
-        eval: true,
-        workerData: {
-          duration: durationMs,
-          cpuLoad: cpuLoad,
-        },
-      });
-
-      worker.on('message', () => {
-        completed++;
-        if (completed === cpuCount) {
-          console.log('[CPU] End');
-          logCpuUsage('CPU - Total', cpuStart);
-          res.status(200).json({ message: 'CPU stress done' });
-          resolve();
-        }
-      });
-
-      workers.push(worker);
+    const start = Date.now();
+    while (Date.now() - start < burnTime) {
+      Math.sqrt(Math.sqrt(Math.sqrt(Math.random())));
     }
-  });
+
+    setTimeout(burnCpu, sleepTime);
+  }
+
+  burnCpu();
 }
 
 // Memory stress (allocates 256 MB for 10 seconds)
