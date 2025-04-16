@@ -16,6 +16,7 @@ async function load_cpu(req, res) {
 
   const workerCode = `
     const { parentPort, workerData } = require('node:worker_threads');
+    const { pbkdf2Sync } = require('node:crypto');
 
     const duration = workerData.duration;
     const cpuLoad = workerData.cpuLoad;
@@ -35,7 +36,8 @@ async function load_cpu(req, res) {
 
       const start = Date.now();
       while (Date.now() - start < burnTime) {
-        Math.sqrt(Math.random());
+        Math.sqrt(Math.sqrt(Math.random()));
+        pbkdf2Sync('super_secret_password', 'salt', 1000000, 64, 'sha512')
       }
 
       setTimeout(burnCpu, sleepTime);
