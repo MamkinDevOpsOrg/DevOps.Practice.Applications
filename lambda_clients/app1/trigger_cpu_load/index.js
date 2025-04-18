@@ -1,7 +1,7 @@
 const http = require('http');
 
 exports.handler = async () => {
-  const url = process.env.TARGET_URL;
+  const url = `${process.env.TARGET_URL}/10`;
 
   console.log(`Lambda triggered: ${url}`);
 
@@ -9,8 +9,14 @@ exports.handler = async () => {
     console.log(`[${i + 1}/6] Sending request to ${url}`);
 
     await new Promise((resolve) => {
+      const options = {
+        headers: {
+          'User-Agent': 'lambda-probe/1.0', // TODO: temp solution to filter requests in logs insights
+        },
+      };
+
       http
-        .get(url, (res) => {
+        .get(url, options, (res) => {
           console.log(`→ ${url} status: ${res.statusCode}`);
           resolve();
         })
