@@ -20,6 +20,20 @@
     <div class="message" id="greeting">Loading...</div>
 
     <script>
+      let instanceId = 'unknown';
+      let privateIp = '0.0.0.0';
+
+      async function loadInstanceMeta() {
+        try {
+          const res = await fetch('/v1/meta');
+          const data = await res.json();
+          instanceId = data.id;
+          privateIp = data.ip;
+        } catch (err) {
+          console.warn('Failed to load instance metadata', err);
+        }
+      }
+
       function formatDate(date) {
         const options = {
           weekday: 'long',
@@ -36,11 +50,11 @@
         const timeStr = now.toLocaleTimeString();
         document.getElementById(
           'greeting'
-        ).textContent = `Hello from instance 1! Today is ${dateStr}. It's ${timeStr} now.`;
+        ).textContent = `Hello from ${instanceId} (${privateIp})! Today is ${dateStr}. It's ${timeStr} now.`;
       }
 
-      updateTime(); // initial call
-      setInterval(updateTime, 1000); // update every second
+      loadInstanceMeta().then(updateTime);
+      setInterval(updateTime, 1000);
     </script>
   </body>
 </html>
