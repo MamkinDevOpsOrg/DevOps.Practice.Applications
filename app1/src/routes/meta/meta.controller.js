@@ -14,14 +14,17 @@ async function getInstanceMeta(key) {
         res.on('data', (chunk) => (data += chunk));
         res.on('end', () => resolve(data));
       })
-      .on('error', reject);
+      .on('error', (err) => {
+        console.error(`[Meta] Failed to get ${key}:`, err);
+        resolve('unknown');
+      });
   });
 }
 
-async function getInstanceIdentity() {
+async function getInstanceIdentity(req, res) {
   const id = await getInstanceMeta('instance-id');
   const ip = await getInstanceMeta('local-ipv4');
-  return { id, ip };
+  res.json({ id, ip });
 }
 
 module.exports = { getInstanceIdentity };

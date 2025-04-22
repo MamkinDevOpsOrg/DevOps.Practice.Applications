@@ -11,5 +11,3 @@ async function startServer() {
 }
 
 startServer();
-
-// TODO
