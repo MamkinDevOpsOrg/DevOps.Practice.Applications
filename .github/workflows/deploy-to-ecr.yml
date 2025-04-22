@@ -55,15 +55,15 @@ jobs:
           docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:latest
           docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:temp-${SHORT_SHA}
 
-      - name: Trigger infra workflow
-        env:
-          GH_TOKEN: ${{ secrets.REPO_DISPATCH_TOKEN }}
-        run: |
-          curl -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: token $GH_TOKEN" \
-            https://api.github.com/repos/MamkinDevOpsOrg/DevOps.Practice.Infrastructure/dispatches \
-            -d '{"event_type":"app_image_updated"}'
+      # - name: Trigger infra workflow
+      #   env:
+      #     GH_TOKEN: ${{ secrets.REPO_DISPATCH_TOKEN }}
+      #   run: |
+      #     curl -X POST \
+      #       -H "Accept: application/vnd.github+json" \
+      #       -H "Authorization: token $GH_TOKEN" \
+      #       https://api.github.com/repos/MamkinDevOpsOrg/DevOps.Practice.Infrastructure/dispatches \
+      #       -d '{"event_type":"app_image_updated"}'
 
       - name: Output image tags
         run: |
