@@ -1,6 +1,6 @@
 {
   "type": "module",
   "dependencies": {
-    "pg": "^8.15.6"
+    "@aws-sdk/client-sqs": "^3.799.0"
   }
 }
