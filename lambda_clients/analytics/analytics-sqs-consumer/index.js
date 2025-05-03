@@ -14,6 +14,13 @@ export const handler = async (event) => {
     await client.connect();
 
     for (const record of event.Records) {
+      // Lambda receives messages in batches from SQS (up to batchSize).
+      // If an error occurs during processing, the ENTIRE batch is retried.
+      // To avoid message loss or duplicate processing:
+      // - Ensure inserts are idempotent (e.g., use ON CONFLICT in SQL).
+      // - Wrap per-message logic in try/catch to prevent one failure from affecting others.
+      // - Consider configuring a Dead Letter Queue (DLQ) for permanently failing messages.
+
       const body = JSON.parse(record.body);
 
       const { session_id, user_id, event_type } = body;
