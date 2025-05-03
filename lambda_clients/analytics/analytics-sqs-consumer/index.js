@@ -1,6 +1,7 @@
-import { Client } from 'pg';
+import pkg from 'pg';
+const { Pool } = pkg;
 
-const client = new Client({
+const pool = new Pool({
   host: process.env.DB_HOST,
   port: 5432,
   user: process.env.DB_USER,
@@ -9,80 +10,90 @@ const client = new Client({
   ssl: { rejectUnauthorized: false },
 });
 
+/**
+ * Lambda handler for consuming analytics events from SQS.
+ *
+ * - Uses pg.Pool to allow safe re-use of DB connections.
+ * - Wraps each record in try/catch to isolate failures.
+ * - Designed for batch processing from SQS.
+ */
 export const handler = async (event) => {
+  const client = await pool.connect();
+
   try {
-    await client.connect();
-
     for (const record of event.Records) {
-      // Lambda receives messages in batches from SQS (up to batchSize).
-      // If an error occurs during processing, the ENTIRE batch is retried.
-      // To avoid message loss or duplicate processing:
-      // - Ensure inserts are idempotent (e.g., use ON CONFLICT in SQL).
-      // - Wrap per-message logic in try/catch to prevent one failure from affecting others.
-      // - Consider configuring a Dead Letter Queue (DLQ) for permanently failing messages.
+      try {
+        const body = JSON.parse(record.body);
+        const { session_id, user_id, event_type } = body;
 
-      const body = JSON.parse(record.body);
+        if (!session_id || !user_id || !event_type) {
+          console.warn(
+            'Skipping record — missing session_id/user_id/event_type'
+          );
+          continue;
+        }
 
-      const { session_id, user_id, event_type } = body;
-      if (!session_id || !user_id || !event_type) continue;
-
-      await client.query(
-        `
-        INSERT INTO user_session (session_id, user_id)
-        VALUES ($1, $2)
-        ON CONFLICT (session_id) DO NOTHING
-      `,
-        [session_id, user_id]
-      );
-
-      if (event_type === 'page_hit') {
-        const { hit_id, url, referrer, user_agent, timestamp } = body;
         await client.query(
           `
-          INSERT INTO page_hit (hit_id, session_id, url, referrer, user_agent, timestamp)
-          VALUES ($1, $2, $3, $4, $5, $6)
+          INSERT INTO user_session (session_id, user_id)
+          VALUES ($1, $2)
+          ON CONFLICT (session_id) DO NOTHING
         `,
-          [hit_id, session_id, url, referrer, user_agent, timestamp]
+          [session_id, user_id]
         );
-      } else if (event_type === 'page_click') {
-        const {
-          click_id,
-          url,
-          element_id,
-          element_class,
-          element_text,
-          timestamp,
-        } = body;
-        await client.query(
-          `
-          INSERT INTO page_click (click_id, session_id, url, element_id, element_class, element_text, timestamp)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
-        `,
-          [
+
+        if (event_type === 'page_hit') {
+          const { hit_id, url, referrer, user_agent, timestamp } = body;
+          await client.query(
+            `
+            INSERT INTO page_hit (hit_id, session_id, url, referrer, user_agent, timestamp)
+            VALUES ($1, $2, $3, $4, $5, $6)
+          `,
+            [hit_id, session_id, url, referrer, user_agent, timestamp]
+          );
+        } else if (event_type === 'page_click') {
+          const {
             click_id,
-            session_id,
             url,
             element_id,
             element_class,
             element_text,
             timestamp,
-          ]
-        );
-      } else {
-        console.warn('⚠️ Unknown event_type:', event_type);
+          } = body;
+          await client.query(
+            `
+            INSERT INTO page_click (click_id, session_id, url, element_id, element_class, element_text, timestamp)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `,
+            [
+              click_id,
+              session_id,
+              url,
+              element_id,
+              element_class,
+              element_text,
+              timestamp,
+            ]
+          );
+        } else {
+          console.warn('Unknown event_type:', event_type);
+        }
+      } catch (recordErr) {
+        console.error('⚠️ Failed to process message:', recordErr);
       }
     }
 
-    await client.end();
-    return { statusCode: 200, body: 'Batch processed' };
+    return {
+      statusCode: 200,
+      body: 'Batch processed successfully',
+    };
   } catch (err) {
     console.error('❌ Error processing batch:', err);
     return {
       statusCode: 500,
-      body: JSON.stringify({
-        error: 'Failed to process events',
-        details: err.message,
-      }),
+      body: JSON.stringify({ error: 'Batch failed', details: err.message }),
     };
+  } finally {
+    client.release();
   }
 };
