@@ -11,11 +11,15 @@ Example:
 
 ```tree
 lambda_clients
-├───app1
-|   ├───trigger_cpu_load
-|   |   └───index.js
-|   └───trigger_mem_load
-|       └───index.js
+├───analytics
+|   ├───analytics-data-getter
+|   |   ├───index.js
+|   |   └───...
+|   ├───analytics-db-init
+|   |   ├───index.js
+|   |   └───...
+|   └───...
+├───...
 └───README.md ← you are here
 
 ```
@@ -26,8 +30,8 @@ lambda_clients
 
 - **The name of the folder must exactly match the `function_name` defined in Terraform**.
 - Example:
-  - Folder: `lambda_clients/app1/trigger_cpu_load`
-  - Terraform: `function_name = "trigger_cpu_load"`
+  - Folder: `lambda_clients/analytics/analytics-data-getter`
+  - Terraform: `function_name = "analytics-data-getter"`
 
 This ensures the GitHub Actions workflow can correctly update the corresponding function in AWS.
 
