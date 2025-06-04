@@ -83,6 +83,23 @@ jobs:
       - name: Set ECR registry variable
         run: echo "REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
 
+      - name: Fail if image tag already exists in ECR (for safety)
+        if: ${{ (github.event.inputs.mode == 'build_and_push' || github.event.inputs.mode == 'build_and_deploy') && github.event.inputs.version_tag != '' }}
+        run: |
+          echo "🔒 Verifying that tag $IMAGE_TAG is not already used in $ECR_REPO..."
+          IMAGE_EXISTS=$(aws ecr describe-images \
+            --region $AWS_REGION \
+            --repository-name $ECR_REPO \
+            --query "imageDetails[?contains(imageTags, '$IMAGE_TAG')]" \
+            --output text)
+
+          if [ -n "$IMAGE_EXISTS" ]; then
+            echo "❌ Image tag '$IMAGE_TAG' already exists in ECR"
+            exit 1
+          fi
+
+          echo "✅ Tag is safe to use: $IMAGE_TAG"
+
       - name: Build Docker image
         if: ${{ github.event.inputs.mode == 'build_and_push' || github.event.inputs.mode == 'build_and_deploy' }}
         run: |
@@ -99,7 +116,7 @@ jobs:
           docker push $REGISTRY/$ECR_REPO:$IMAGE_TAG
 
       - name: Check if image with tag exists in ECR
-        if: ${{ github.event.inputs.mode != 'build_and_deploy' }}
+        if: ${{ github.event.inputs.mode == 'deploy_only' || github.event.inputs.mode == 'rollback' }}
         run: |
           echo "🔍 Checking if image $IMAGE_TAG exists in $ECR_REPO..."
           IMAGE_EXISTS=$(aws ecr describe-images \
