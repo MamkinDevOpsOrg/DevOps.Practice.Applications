@@ -1,0 +1,133 @@
+name: Deploy app1 to environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Target environment'
+        required: true
+        type: choice
+        default: dev
+        options:
+          - dev
+          - prod
+
+      version_tag:
+        description: 'Docker image tag (e.g. v1.0.3)'
+        required: false
+
+      mode:
+        description: 'Deployment mode'
+        required: true
+        default: build_and_deploy
+        type: choice
+        options:
+          - build_and_push
+          - build_and_deploy
+          - deploy_only
+          - rollback
+
+env:
+  AWS_REGION_DEV: us-west-2
+  AWS_REGION_PROD: us-east-1
+  ECR_REPO_DEV: ecr-kapset-dev
+  ECR_REPO_PROD: ecr-kapset-prod
+
+jobs:
+  deploy:
+    name: Deploy to ${{ github.event.inputs.env }}
+    runs-on: ubuntu-latest
+
+    environment:
+      name: ${{ github.event.inputs.env }}
+
+    steps:
+      - name: Checkout app code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.version_tag || 'main' }}
+
+      - name: Validate version_tag for prod
+        if: ${{ github.event.inputs.env == 'prod' && github.event.inputs.version_tag == '' }}
+        run: |
+          echo "❌ version_tag is required for production deployments"
+          exit 1
+
+      - name: Set dynamic variables
+        run: |
+          if [[ "${{ github.event.inputs.env }}" == "prod" ]]; then
+            echo "AWS_REGION=${{ env.AWS_REGION_PROD }}" >> $GITHUB_ENV
+            echo "ECR_REPO=${{ env.ECR_REPO_PROD }}" >> $GITHUB_ENV
+          else
+            echo "AWS_REGION=${{ env.AWS_REGION_DEV }}" >> $GITHUB_ENV
+            echo "ECR_REPO=${{ env.ECR_REPO_DEV }}" >> $GITHUB_ENV
+          fi
+
+          TAG="${{ github.event.inputs.version_tag }}"
+          if [[ -z "$TAG" ]]; then
+            TAG="dev-latest"
+          fi
+          echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set ECR registry variable
+        run: echo "REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
+
+      - name: Build Docker image
+        if: ${{ github.event.inputs.mode == 'build_and_push' || github.event.inputs.mode == 'build_and_deploy' }}
+        run: |
+          docker build -t app1 ./app1
+
+      - name: Tag Docker image
+        if: ${{ github.event.inputs.mode == 'build_and_push' || github.event.inputs.mode == 'build_and_deploy' }}
+        run: |
+          docker tag app1 $REGISTRY/$ECR_REPO:$IMAGE_TAG
+
+      - name: Push Docker image to ECR
+        if: ${{ github.event.inputs.mode == 'build_and_push' || github.event.inputs.mode == 'build_and_deploy' }}
+        run: |
+          docker push $REGISTRY/$ECR_REPO:$IMAGE_TAG
+
+      - name: Check if image with tag exists in ECR
+        if: ${{ github.event.inputs.mode != 'build_and_deploy' }}
+        run: |
+          echo "🔍 Checking if image $IMAGE_TAG exists in $ECR_REPO..."
+          IMAGE_EXISTS=$(aws ecr describe-images \
+            --region $AWS_REGION \
+            --repository-name $ECR_REPO \
+            --query "imageDetails[?contains(imageTags, '$IMAGE_TAG')]" \
+            --output text)
+
+          if [ -z "$IMAGE_EXISTS" ]; then
+            echo "❌ Image tag '$IMAGE_TAG' not found in ECR"
+            exit 1
+          fi
+
+          echo "✅ Image found in ECR: $ECR_REPO:$IMAGE_TAG"
+
+      - name: Deploy container to EC2
+        if: ${{ github.event.inputs.mode == 'build_and_deploy' || github.event.inputs.mode == 'deploy_only' || github.event.inputs.mode == 'rollback' }}
+        run: |
+          echo "🔁 Triggering EC2 update via SSM with image tag: $IMAGE_TAG"
+
+          aws ssm send-command \
+            --region $AWS_REGION \
+            --document-name "AWS-RunShellScript" \
+            --targets "Key=tag:Name,Values=app1-asg-instance-${{ github.event.inputs.env }}" \
+            --comment "Deploy $IMAGE_TAG via GitHub Actions" \
+            --parameters "commands=[
+              \"docker rm -f app1 || true\",
+              \"docker pull $REGISTRY/$ECR_REPO:$IMAGE_TAG\",
+              \"docker run -d --name app1 -p 80:8000 $REGISTRY/$ECR_REPO:$IMAGE_TAG\"
+            ]" \
+            --output text
