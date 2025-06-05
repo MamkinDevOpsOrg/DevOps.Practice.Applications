@@ -1,0 +1,85 @@
+name: Deploy Lambda Clients
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+      version_tag:
+        description: 'Git tag (e.g. v1.0.0)'
+        required: false
+
+env:
+  AWS_REGION_DEV: us-west-2
+  AWS_REGION_PROD: us-east-1
+
+jobs:
+  deploy-lambdas:
+    name: Deploy Lambda Clients to ${{ github.event.inputs.env }}
+    runs-on: ubuntu-latest
+
+    environment:
+      name: ${{ github.event.inputs.env }}
+
+    steps:
+      - name: Validate version_tag for prod
+        if: ${{ github.event.inputs.env == 'prod' && github.event.inputs.version_tag == '' }}
+        run: |
+          echo "❌ version_tag is required for production deployments"
+          exit 1
+
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.version_tag || 'main' }}
+
+      - name: Set dynamic AWS region
+        run: |
+          if [[ "${{ github.event.inputs.env }}" == "prod" ]]; then
+            echo "AWS_REGION=${{ env.AWS_REGION_PROD }}" >> $GITHUB_ENV
+          else
+            echo "AWS_REGION=${{ env.AWS_REGION_DEV }}" >> $GITHUB_ENV
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install Node.js dependencies
+        run: |
+          find lambda_clients -mindepth 2 -maxdepth 2 -type d | while read dir; do
+            if [ -f "$dir/package.json" ]; then
+              echo "Installing dependencies in $dir"
+              (cd "$dir" && npm install --omit=dev)
+            else
+              echo "No package.json in $dir, skipping"
+            fi
+          done
+
+      - name: Zip all lambda functions
+        run: |
+          find lambda_clients -mindepth 2 -maxdepth 2 -type d | while read dir; do
+            name=$(basename "$dir")
+            (cd "$dir" && zip -r "../../../lambda_clients/${name}.zip" .)
+          done
+
+      - name: Deploy each Lambda function
+        run: |
+          for zip in lambda_clients/*.zip; do
+            name=$(basename "$zip" .zip)
+            target_name="${name}-${{ github.event.inputs.env }}"
+            echo "🔁 Deploying $zip to Lambda $target_name..."
+
+            aws lambda update-function-code \
+              --region $AWS_REGION \
+              --function-name "$target_name" \
+              --zip-file "fileb://$zip"
+          done
