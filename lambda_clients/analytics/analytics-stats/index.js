@@ -1,12 +1,15 @@
-const { Client } = require('pg');
+import { Client } from 'pg';
 
-exports.handler = async () => {
+export const handler = async () => {
   const client = new Client({
     host: process.env.DB_HOST,
     port: 5432,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
+    ssl: {
+      rejectUnauthorized: false,
+    },
   });
 
   try {
@@ -34,5 +37,7 @@ exports.handler = async () => {
       statusCode: 500,
       body: JSON.stringify({ error: 'Internal Server Error' }),
     };
+  } finally {
+    await client.end();
   }
 };
