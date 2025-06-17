@@ -19,12 +19,10 @@ on:
       mode:
         description: 'Deployment mode'
         required: true
-        default: build_and_deploy
+        default: build_and_push
         type: choice
         options:
           - build_and_push
-          - build_and_deploy
-          - deploy_only
           - rollback
 
 env:
@@ -74,7 +72,7 @@ jobs:
         run: echo "REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
 
       - name: Fail if image tag already exists in ECR (for safety)
-        if: ${{ (github.event.inputs.mode == 'build_and_push' || github.event.inputs.mode == 'build_and_deploy') && github.event.inputs.version_tag != '' }}
+        if: ${{ github.event.inputs.mode == 'build_and_push' && github.event.inputs.version_tag != '' }}
         run: |
           echo "🔒 Verifying that tag $IMAGE_TAG is not already used in $ECR_REPO..."
           IMAGE_EXISTS=$(aws ecr describe-images \
@@ -91,22 +89,22 @@ jobs:
           echo "✅ Tag is safe to use: $IMAGE_TAG"
 
       - name: Build Docker image
-        if: ${{ github.event.inputs.mode == 'build_and_push' || github.event.inputs.mode == 'build_and_deploy' }}
+        if: ${{ github.event.inputs.mode == 'build_and_push' }}
         run: |
           docker build -t app1 ./app1
 
       - name: Tag Docker image
-        if: ${{ github.event.inputs.mode == 'build_and_push' || github.event.inputs.mode == 'build_and_deploy' }}
+        if: ${{ github.event.inputs.mode == 'build_and_push' }}
         run: |
           docker tag app1 $REGISTRY/$ECR_REPO:$IMAGE_TAG
 
       - name: Push Docker image to ECR
-        if: ${{ github.event.inputs.mode == 'build_and_push' || github.event.inputs.mode == 'build_and_deploy' }}
+        if: ${{ github.event.inputs.mode == 'build_and_push' }}
         run: |
           docker push $REGISTRY/$ECR_REPO:$IMAGE_TAG
 
       - name: Check if image with tag exists in ECR
-        if: ${{ github.event.inputs.mode == 'deploy_only' || github.event.inputs.mode == 'rollback' }}
+        if: ${{ github.event.inputs.mode == 'rollback' }}
         run: |
           echo "🔍 Checking if image $IMAGE_TAG exists in $ECR_REPO..."
           IMAGE_EXISTS=$(aws ecr describe-images \
@@ -122,19 +120,14 @@ jobs:
 
           echo "✅ Image found in ECR: $ECR_REPO:$IMAGE_TAG"
 
-      - name: Deploy container to EC2
-        if: ${{ github.event.inputs.mode == 'build_and_deploy' || github.event.inputs.mode == 'deploy_only' || github.event.inputs.mode == 'rollback' }}
-        run: |
-          echo "🔁 Triggering EC2 update via SSM with image tag: $IMAGE_TAG"
-
-          aws ssm send-command \
-            --region $AWS_REGION \
-            --document-name "AWS-RunShellScript" \
-            --targets "Key=tag:Name,Values=app1-asg-instance-${{ github.event.inputs.env }}" \
-            --comment "Deploy $IMAGE_TAG via GitHub Actions" \
-            --parameters "commands=[
-              \"docker rm -f app1 || true\",
-              \"docker pull $REGISTRY/$ECR_REPO:$IMAGE_TAG\",
-              \"docker run -d --name app1 -p 80:8000 $REGISTRY/$ECR_REPO:$IMAGE_TAG\"
-            ]" \
-            --output text
+      - name: Trigger ECS deploy in infrastructure repo
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.REPO_DISPATCH_TOKEN }}
+          repository: MamkinDevOpsOrg/DevOps.Practice.Infrastructure
+          event-type: deploy-app1
+          client-payload: |
+            {
+              "env": "${{ github.event.inputs.env }}",
+              "version_tag": "${{ github.event.inputs.version_tag }}"
+            }
