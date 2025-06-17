@@ -14,7 +14,7 @@ on:
 
       version_tag:
         description: 'Docker image tag (e.g. v1.0.3)'
-        required: false
+        required: true
 
       mode:
         description: 'Deployment mode'
@@ -47,12 +47,6 @@ jobs:
         with:
           ref: ${{ github.event.inputs.version_tag || 'main' }}
 
-      - name: Validate version_tag for prod
-        if: ${{ github.event.inputs.env == 'prod' && github.event.inputs.version_tag == '' }}
-        run: |
-          echo "❌ version_tag is required for production deployments"
-          exit 1
-
       - name: Set dynamic variables
         run: |
           if [[ "${{ github.event.inputs.env }}" == "prod" ]]; then
@@ -63,11 +57,7 @@ jobs:
             echo "ECR_REPO=${{ env.ECR_REPO_DEV }}" >> $GITHUB_ENV
           fi
 
-          TAG="${{ github.event.inputs.version_tag }}"
-          if [[ -z "$TAG" ]]; then
-            TAG="dev-latest"
-          fi
-          echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${{ github.event.inputs.version_tag }}" >> $GITHUB_ENV
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
