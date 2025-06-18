@@ -1,4 +1,4 @@
-name: Deploy app1 to environment
+name: Build and push new image to ECR
 
 on:
   workflow_dispatch:
@@ -15,15 +15,6 @@ on:
       version_tag:
         description: 'Docker image tag (e.g. v1.0.3)'
         required: true
-
-      mode:
-        description: 'Deployment mode'
-        required: true
-        default: build_and_push
-        type: choice
-        options:
-          - build_and_push
-          - rollback
 
 env:
   AWS_REGION_DEV: us-west-2
@@ -72,7 +63,7 @@ jobs:
         run: echo "REGISTRY=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_ENV
 
       - name: Fail if image tag already exists in ECR (for safety)
-        if: ${{ github.event.inputs.mode == 'build_and_push' && github.event.inputs.version_tag != '' }}
+        if: ${{ github.event.inputs.version_tag != '' }}
         run: |
           echo "🔒 Verifying that tag $IMAGE_TAG is not already used in $ECR_REPO..."
           IMAGE_EXISTS=$(aws ecr describe-images \
@@ -89,45 +80,21 @@ jobs:
           echo "✅ Tag is safe to use: $IMAGE_TAG"
 
       - name: Build Docker image
-        if: ${{ github.event.inputs.mode == 'build_and_push' }}
         run: |
           docker build -t app1 ./app1
 
       - name: Tag Docker image
-        if: ${{ github.event.inputs.mode == 'build_and_push' }}
         run: |
           docker tag app1 $REGISTRY/$ECR_REPO:$IMAGE_TAG
 
       - name: Push Docker image to ECR
-        if: ${{ github.event.inputs.mode == 'build_and_push' }}
         run: |
           docker push $REGISTRY/$ECR_REPO:$IMAGE_TAG
 
-      - name: Check if image with tag exists in ECR
-        if: ${{ github.event.inputs.mode == 'rollback' }}
+      - name: Save image tag to SSM Parameter Store
         run: |
-          echo "🔍 Checking if image $IMAGE_TAG exists in $ECR_REPO..."
-          IMAGE_EXISTS=$(aws ecr describe-images \
-            --region $AWS_REGION \
-            --repository-name $ECR_REPO \
-            --query "imageDetails[?contains(imageTags, '$IMAGE_TAG')]" \
-            --output text)
-
-          if [ -z "$IMAGE_EXISTS" ]; then
-            echo "❌ Image tag '$IMAGE_TAG' not found in ECR"
-            exit 1
-          fi
-
-          echo "✅ Image found in ECR: $ECR_REPO:$IMAGE_TAG"
-
-      - name: Trigger ECS deploy in infrastructure repo
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.REPO_DISPATCH_TOKEN }}
-          repository: MamkinDevOpsOrg/DevOps.Practice.Infrastructure
-          event-type: deploy-app1
-          client-payload: |
-            {
-              "env": "${{ github.event.inputs.env }}",
-              "version_tag": "${{ github.event.inputs.version_tag }}"
-            }
+          aws ssm put-parameter \
+            --name "/app1/${{ github.event.inputs.env }}/image_tag" \
+            --type String \
+            --overwrite \
+            --value "${{ github.event.inputs.version_tag }}"
