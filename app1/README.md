@@ -10,15 +10,14 @@ A Node.js + Express application with production-ready Docker build and GitHub Ac
 
 - Controlled deployment to **dev** and **prod** environments
 - Docker image versioning via **Git tags** (e.g. `v1.0.0`)
-- Four modes of operation:
-  - `build_and_push` — Build Docker image and push to ECR
-  - `build_and_deploy` — Build, push and deploy to EC2
-  - `deploy_only` — Deploy existing image from ECR
-  - `rollback` — Redeploy a previous image version
+- Manual image promotion via `terraform apply`
+- GitHub Actions-based pipeline:
+  - Build and push Docker image to ECR
+  - Save image version to AWS SSM (for `dev`)
 - Safety:
-  - Image overwrite protection (for tagged builds)
-  - Mandatory version tag for prod
-  - Existence check for image before `deploy_only` or `rollback`
+  - Image overwrite protection (ECR)
+  - Mandatory image tag for `prod`
+  - Tag existence check in ECR before apply
 - Manual trigger via GitHub Actions (`workflow_dispatch`)
 
 ---
@@ -60,41 +59,25 @@ docker rm express-container
 
 ---
 
-## 🔄 GitHub Actions Deployment
+## 🔄 GitHub Actions Workflows
 
-Deployment is handled by [`deploy-app.yml`](../.github/workflows/deploy-app.yml)
+### 🔹 Build and Push to ECR
 
-### Triggering a Deployment
+Workflow: [`deploy-app.yml`](../.github/workflows/deploy-app.yml)
 
-Use GitHub → Actions → `Deploy app1 to environment` → `Run workflow`.
+Manually triggered via GitHub → Actions → "Build and push new image to ECR"
 
 #### Required inputs:
 
-| Name          | Description                         | Example            |
-| ------------- | ----------------------------------- | ------------------ |
-| `env`         | Target environment (`dev`, `prod`)  | `prod`             |
-| `version_tag` | Docker tag (`v1.0.3`, `dev-latest`) | `v1.0.3`           |
-| `mode`        | Deployment mode                     | `build_and_deploy` |
+| Name          | Description                        | Example  |
+| ------------- | ---------------------------------- | -------- |
+| `env`         | Target environment (`dev`, `prod`) | `prod`   |
+| `version_tag` | Docker image tag (e.g. `v1.0.3`)   | `v1.0.3` |
 
-### Example: Prod release flow
+This workflow:
 
-```bash
-# Tag the current commit
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-Then in GitHub Actions:
-
-- `env = prod`
-- `version_tag = v1.0.0`
-- `mode = build_and_deploy`
-
-This will:
-
-- Checkout snapshot for `v1.0.0`
-- Build and push Docker image
-- Deploy image to EC2 instance using SSM
+- Builds and pushes Docker image to environment-specific ECR
+- Saves the image tag to AWS SSM Parameter Store at `/app1/{env}/image_tag`
 
 ---
 
@@ -107,10 +90,36 @@ All images are pushed to your environment-specific ECR repository:
 
 ---
 
+## 📜 Deployment via Infrastructure Repo
+
+Actual deployment is handled in the **infrastructure repository** (`DevOps.Practice.Infrastructure`) via `terraform-apply.yml`.
+
+- In `dev`: Terraform picks up the latest tag from SSM automatically if not explicitly provided
+- In `prod`: You must manually specify the image tag and infrastructure version tag (Git tag)
+
+### Example `terraform apply` for dev
+
+| Input           | Value        |
+| --------------- | ------------ |
+| `env`           | `dev`        |
+| `infra_version` | `main`       |
+| `image_tag`     | _(optional)_ |
+
+### Example `terraform apply` for prod
+
+| Input           | Value          |
+| --------------- | -------------- |
+| `env`           | `prod`         |
+| `infra_version` | `v1.0.0-infra` |
+| `image_tag`     | `v1.0.0`       |
+
+---
+
 ## 🛡 Deployment Safety
 
-- ❗ Tagged images (e.g. `v1.0.0`) **cannot be overwritten**
-- ❗ `version_tag` is **required for production**
-- ✅ Deployment checks ECR for image existence before attempting deploy
+- ❗ Tagged Docker images cannot be overwritten (ECR check)
+- ❗ `image_tag` is **required** for production applies
+- ✅ `terraform apply` verifies that Docker image exists in ECR
+- ✅ `dev` deployments use SSM for auto-tag resolution if image_tag is omitted
 
 ---
