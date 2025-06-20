@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Hello with Live Time</title>
+    <title>Hello from ECS Container</title>
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -48,9 +48,7 @@
         const now = new Date();
         const dateStr = formatDate(now);
         const timeStr = now.toLocaleTimeString();
-        document.getElementById(
-          'greeting'
-        ).textContent = `Hello from ${instanceId} (${privateIp})! Today is ${dateStr}. It's ${timeStr} now.`;
+        document.getElementById('greeting').textContent = `Hello from ECS Task ${instanceId} (${privateIp})! ` + `Today is ${dateStr}. It's ${timeStr} now.`;
       }
 
       loadInstanceMeta().then(updateTime);
