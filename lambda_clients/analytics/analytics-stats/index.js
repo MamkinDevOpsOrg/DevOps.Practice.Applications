@@ -1,6 +1,19 @@
 import { Client } from 'pg';
 
-export const handler = async () => {
+export const handler = async (event) => {
+  // Handle preflight CORS request
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': '*',
+        'Access-Control-Allow-Methods': 'GET,OPTIONS',
+      },
+      body: '',
+    };
+  }
+
   const client = new Client({
     host: process.env.DB_HOST,
     port: 5432,
@@ -25,16 +38,22 @@ export const handler = async () => {
       LEFT JOIN page_click pc ON us.session_id = pc.session_id;
     `);
 
-    await client.end();
-
     return {
       statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify(result.rows[0]),
     };
   } catch (err) {
     console.error('Query error:', err);
     return {
       statusCode: 500,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ error: 'Internal Server Error' }),
     };
   } finally {
