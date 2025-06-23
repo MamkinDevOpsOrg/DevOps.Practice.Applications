@@ -11,9 +11,10 @@
   "license": "ISC",
   "description": "Simple Express API",
   "dependencies": {
-    "express": "^4.21.2",
     "dotenv": "^16.4.7",
-    "morgan": "^1.10.0"
+    "express": "^4.21.2",
+    "morgan": "^1.10.0",
+    "node-fetch": "^2.7.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"
